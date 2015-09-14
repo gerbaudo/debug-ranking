@@ -2,7 +2,7 @@
 // Email       : gadatsch@nikhef.nl
 // Date        : 2013-04-13
 // Description : Draw pulls of nuisance parameters, rank by importance
-// Version used by Davide
+// Version used by Rob
 
 #include "TCanvas.h"
 #include "TH2F.h"
@@ -13,7 +13,7 @@
 #include "TSystemDirectory.h"
 #include "TList.h"
 #include "TSystemFile.h"
-#include "TStyle.h"
+#include "TPaveText.h"
 
 #include "macros/drawPlot.C"
 
@@ -29,48 +29,43 @@ using namespace std;
 bool doHorizontal          = false; // produce a horizontal plot
 bool drawInset             = false; // will cover legend but show the normalisation factors which are a priori unconstrained
 bool drawErrorBars         = false; // draw bars visualising the total, stat and syst uncertainty
+bool drawHatchedBands      = false; // draw hatched bands around delta muhat = 0 to visualise the total, stat and syst uncertainty
 bool drawParamNames        = true;  // show the nuisance parameter labels
 bool drawPostfitImpactBand = true;  // && (mode != error); // draw a band with the variation of muhat due to each theta (postfit uncertainty)
 bool drawPrefitImpactBand  = true;  // && (mode != error); // draw a band with the variation of muhat due to each theta (prefit uncertainty)
-bool useRelativeImpact     = true; // switch to delta muhat / delta muhat tot for the top axis
+bool useRelativeImpact     = false; // switch to delta muhat / delta muhat tot for the top axis
 int useBreakdown           = 0;     // 0 = add, 1 = sub
-double scale_poi           = 1.0;   // zoom the impact axis
-double scale_theta         = 1.0;   // zoom the pull axis
+double scale_poi           = 1;   // zoom the impact axis
+double scale_theta         = 1;   // zoom the pull axis
 bool removeHbb             = false; // remove Hbb parameters from the plot
 bool removeHtt             = false; // remove Htt parameters from the plot
 int showTopParameters      = 50;    // -1 to show all parameters
-// int showTopParameters      = -1;    // -1 to show all parameters // DG-2015-07-27
 double showHighImpact      = 0.0;   // sigma_comp / sigma_tot threshold
-Color_t color_standardband    = kRed-4;
-Color_t color_standardband_ol = kBlue-4;
+Color_t color_standardband = kYellow-7;
+Color_t color_standardband_ol = kGreen-8;
 Color_t color_totalerror   = kBlue-4;
 Color_t color_staterror    = kGreen+1;
 Color_t color_systerror    = kMagenta-4;
 Color_t color_pulls        = kGray+2;
-Color_t color_prefit       = kYellow-7;
-Color_t color_prefit_ol    = kGreen-8;
-Color_t color_postfit      = kBlue-4;
-Color_t color_postfit_ol   = kYellow-7;
+Color_t color_prefit       = kBlue-4;
+Color_t color_prefit_ol    = kOrange+1;
+Color_t color_postfit      = kRed-4;
+Color_t color_postfit_ol   = kMagenta+3;
 bool rankNuis              = true; // sort the nuisance parameters by impact on POI
-bool skip_gamma_B0          = false; // hlfv: do not include gamma_B0 nuisance parameters
+Int_t style_postfit        = 3153;
+Int_t style_postfit_ol     = 3153;
+Int_t style_prefit         = 3135;
+Int_t style_prefit_ol      = 3135;
 
 void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad* pad2);
 void ROOT2Ascii(string folder);
 void loadFile(const char* fileName, int cols, fileHolder file);
 vector<string> getLabel(const char* fileName, int nrPars);
-void drawPlot_pulls(string mass = "125",
-                    // string cardName = "Davide_2406",
-                    // string cardName = "Jun_23_float_all_fpt", //Change this to get the right folder name to make in root-files
-                    // string cardName = "Jun_23_5l1pt_7m_fixlast",
-                    // string cardName = "test_Jul_06_3l1pt_19m_floatall_fptuncorr",
-                    // string cardName = "test_Jul_06_3l1pt_19m_floatall_fptuncorr_shift2",
-                    // string cardName = "taue_Jul_06_3l1pt_10m_03m_floatall_fptuncorr",
-                    // string cardName = "taumu_Jul_06_3l1pt_111219m_060813m_all_symm_shift2",
-                    // string cardName = "taumu_Jul_06_3l1pt_111219m_060813m_all_symm01_pu",
-                    // string cardName = "taumu_Jul_06_3l1pt_111219m_060813m_all_symm01_pu_hack_fake",
-                    string cardName = "taue_ll_only_combination_Aug_31",
-                    bool remakeAscii = 1,
-                    string overlayCard="") {
+void drawPlot_pulls(bool _useRelativeImpact = 0, double use_scale_poi=1, double use_scale_theta = 1, string mass = "125", string cardName = "", bool remakeAscii = 0, string overlayCard="") {
+    useRelativeImpact = _useRelativeImpact;
+    scale_poi = use_scale_poi;
+    scale_theta = use_scale_theta;
+    cout << "useRelativeImpact = " << useRelativeImpact << " scale_poi = " << scale_poi << " scale_theta = " << scale_theta << endl;
     vector<string> parsed = parseString(cardName, ":");
     string cardOpts;
     if (parsed.size() > 1) {
@@ -93,19 +88,20 @@ void drawPlot_pulls(string mass = "125",
 
     showLabel = 1;
 
+
     TCanvas* c1 = new TCanvas("c1","c1",1024,1448);
 
     TPad *pad1 = new TPad("pad1", "pad1", 0.0  , 0.0  , 1.0 , 1.0  , 0);
     TPad *pad2 = new TPad("pad2", "pad2", 0.63, 0.1, 0.94, 0.22, 0);
 
-    if (drawParamNames) pad1->SetLeftMargin(0.25);
+    if (drawParamNames) pad1->SetLeftMargin(0.29);
     else pad1->SetLeftMargin(0.05);
     pad1->SetRightMargin(0.05);
     pad1->SetBottomMargin(0.09);
     if (drawErrorBars) pad1->SetTopMargin(0.10);
     else pad1->SetTopMargin(0.09);
     
-    pad2->SetLeftMargin(0.325);
+    pad2->SetLeftMargin(0.35);
     pad2->SetRightMargin(0.01);
 
     pad1->Draw();
@@ -199,8 +195,62 @@ void drawPlot_pulls(string mass = "125",
         t.SetTextSize(0.03);
         t.SetNDC();
 
-        //t.DrawLatex(channelPosX, channelPosY, cardName.c_str());
-        if (overlay != "") t.DrawLatex(channelPosX, channelPosY-0.025, overlay.c_str());
+	// t.DrawLatex(channelPosX, channelPosY, cardName.c_str());
+	//        if (overlay != "") t.DrawLatex(channelPosX, channelPosY-0.025, overlay.c_str());
+
+
+	TPaveText *tbox1 = new TPaveText(0.30,0.1,0.63,0.22,"BRNDC");
+	tbox1->SetBorderSize(0);
+	tbox1->SetFillStyle(1000);
+	tbox1->SetFillColor(0);
+	tbox1->SetLineColor(0);
+	tbox1->SetTextSize(0.03);
+	tbox1->SetTextAlign(21);
+	TString tmpName=cardName;
+	/*
+	if (tmpName.BeginsWith("emb") || tmpName.BeginsWith("vis")) {
+	  if (tmpName.EndsWith("125_0")) {
+	    tmpName.ReplaceAll("_125_0","");	  
+	  } else if (tmpName.EndsWith("125_1")) {
+	    tmpName.ReplaceAll("_125_1"," (Asimov)");	  
+	  }
+	} else 
+	*/
+	{
+	  if (tmpName.EndsWith("125_1")) {
+	    tmpName.ReplaceAll("_125_1"," (ObsData)");
+	  } else if  (tmpName.EndsWith("125_2")) {
+	    tmpName.ReplaceAll("_125_2"," (Asimov0)");
+	  } else if  (tmpName.EndsWith("125_3")) {
+	    tmpName.ReplaceAll("_125_3"," (Hybrid)");
+	  }
+	}
+	//
+	tbox1->AddText(.45,.6,tmpName);
+	if (overlay != "") {
+	  tmpName=overlay;
+	  /*
+	  if (tmpName.BeginsWith("emb") || tmpName.BeginsWith("vis")) {
+	    if (tmpName.EndsWith("125_0")) {
+	      tmpName.ReplaceAll("_125_0","");	  
+	    } else if (tmpName.EndsWith("125_1")) {
+	      tmpName.ReplaceAll("_125_1"," (Asimov)");	  
+	    }
+	  } else 
+	  */
+	  {
+	    if (tmpName.EndsWith("125_1")) {
+	      tmpName.ReplaceAll("_125_1"," (ObsData)");
+	    } else if  (tmpName.EndsWith("125_2")) {
+	      tmpName.ReplaceAll("_125_2"," (Asimov0)");
+	    } else if  (tmpName.EndsWith("125_3")) {
+	      tmpName.ReplaceAll("_125_3"," (Hybrid)");
+	    }
+	  }
+	  //
+	  tbox1->AddText(.36, 0.4, Form("Alt %s",tmpName.Data()));
+	}
+	tbox1->Draw();
     }
 
     labelPosY = channelPosY-0.02;
@@ -221,10 +271,23 @@ void drawPlot_pulls(string mass = "125",
     TLatex t2;
     t2.SetTextSize(0.03);
     t2.SetNDC();
-    //    t2.DrawLatex(channelPosX, channelPosY-0.07, ("m_{H}="+mass+" GeV").c_str());
+    t2.DrawLatex(channelPosX+.055, channelPosY-0.07, ("m_{H}="+mass+" GeV").c_str());
+
+
+    TPaveText *npbox = new TPaveText(channelPosX-.25,0.92,channelPosX-.01,0.99,"BRNDC");
+    npbox->SetBorderSize(1);
+    npbox->SetFillColor(0);
+    npbox->SetTextSize(0.028);
+    npbox->SetTextAlign(22);
+    npbox->AddText("NP Classification:");
+    npbox->AddText(Form("#color[%d]{Statistical}",kMagenta+1));
+    npbox->AddText(Form("#color[%d]{Systematic}",kCyan-2));
+    npbox->AddText(Form("#color[%d]{Theoretical}",kOrange+10));
+    npbox->Draw();
 
     stringstream saveName;
     saveName << cardName << "_pulls_" << mass;
+    if (overlay != "") saveName << "_" << overlay << "_pulls_" << mass;
     save(saveName.str(), "eps", c1);
     save(saveName.str(), "pdf", c1);
     save(saveName.str(), "C", c1);
@@ -300,7 +363,6 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     int nrNFs = nfs.massPoints.size();
     int nrCats = cats.massPoints.size();
 
-    //int nrNuis_ol = 30;
     int nrNuis_ol = pulls_ol.massPoints.size();
     int nrNFs_ol = nfs_ol.massPoints.size();
     int nrCats_ol = cats_ol.massPoints.size();
@@ -370,6 +432,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
 
     // set correct values for the poi
     for (int i = 0; i < nrNuis; i++) {
+
         val[i] *= scale_theta;
 
         poi_up[i]   = poi_up[i] - poi_hat[i];
@@ -378,8 +441,23 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         poi_nom_up[i]   = poi_nom_up[i] - poi_hat[i];
         poi_nom_down[i] = poi_nom_down[i] - poi_hat[i];
         
-        if (poi_up[i] < 0) swap(poi_up[i], poi_down[i]);
-        if (poi_nom_up[i] < 0) swap(poi_nom_up[i], poi_nom_down[i]);
+	//        if (poi_up[i] < 0) swap(poi_up[i], poi_down[i]);
+	//        if (poi_nom_up[i] < 0) swap(poi_nom_up[i], poi_nom_down[i]);
+
+	// Trick to show +1sigma postfit impact
+        if (poi_up[i] < 0 && poi_down[i] > 0) {
+	  poi_up[i] = 0;
+	} else if (poi_up[i] > 0 && poi_down[i] < 0 ) {
+	  poi_down[i] = 0;
+	}
+
+	// Trick to show -1sigma pre-fit impact
+        if (poi_nom_up[i] < 0 && poi_nom_down[i] > 0) {
+	  poi_nom_down[i] = 0;
+	} else if (poi_nom_up[i] > 0 && poi_nom_down[i] < 0 ) {
+	  poi_nom_up[i] = 0;
+	}
+
         
         poi_up[i]   = fabs(poi_up[i]);
         poi_down[i] = fabs(poi_down[i]);
@@ -399,9 +477,24 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         poi_nom_up_ol[i]   = poi_nom_up_ol[i] - poi_hat_ol[i];
         poi_nom_down_ol[i] = poi_nom_down_ol[i] - poi_hat_ol[i];
         
-        if (poi_up_ol[i] < 0) swap(poi_up_ol[i], poi_down_ol[i]);
-        if (poi_nom_up_ol[i] < 0) swap(poi_nom_up_ol[i], poi_nom_down_ol[i]);
+	//        if (poi_up_ol[i] < 0) swap(poi_up_ol[i], poi_down_ol[i]);
+	//        if (poi_nom_up_ol[i] < 0) swap(poi_nom_up_ol[i], poi_nom_down_ol[i]);
         
+	
+	// Trick to show +1sigma postfit impact
+        if (poi_up_ol[i] < 0 && poi_down_ol[i] > 0) {
+	  poi_up_ol[i] = 0;
+	} else if (poi_up_ol[i] > 0 && poi_down_ol[i] < 0 ) {
+	  poi_down_ol[i] = 0;
+	}
+
+	// Trick to show -1sigma pre-fit impact
+        if (poi_nom_up_ol[i] < 0 && poi_nom_down_ol[i] > 0) {
+	  poi_nom_down_ol[i] = 0;
+	} else if (poi_nom_up_ol[i] > 0 && poi_nom_down_ol[i] < 0 ) {
+	  poi_nom_up_ol[i] = 0;
+	}
+
         poi_up_ol[i]   = fabs(poi_up_ol[i]);
         poi_down_ol[i] = fabs(poi_down_ol[i]);
 
@@ -417,6 +510,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         if (poi_up[i] > max_poi) max_poi = poi_up[i];
         if (poi_down[i] > max_poi) max_poi = poi_down[i];
     }
+
     // TODO: for overlay as well? maybe get rid of this...
 
     // get labels
@@ -428,7 +522,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         string label;
         idFile >> label;
         labels.push_back(label);
-        cout << "added: " << label << endl;
+	//        cout << "added: " << label << endl;
         nlines++;
     }
 
@@ -530,15 +624,34 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     map<string, vector<double> > nuis_map;
     for (int i = 0; i < nrNuis; i++) {
         string index = labels[i];
-        cout<<"nuis_map['"<<index<<"']"<<endl;
-        nuis_map[index].push_back(val[i]);
-        nuis_map[index].push_back(up[i]);
-        nuis_map[index].push_back(down[i]);
+	TString tmpname = index;
+	//	cout << tmpname << " " << val[i]/scale_theta << " " << up[i]/scale_theta <<  " " << down[i] / scale_theta << endl;
+//	if(!tmpname.Contains("gamma_stat_")) continue;
+	if (tmpname.Contains("gamma_stat_") || tmpname.Contains("ATLAS_norm") || tmpname.Contains("ATLAS_shape_") || tmpname.Contains("B0_l1pt") || tmpname.Contains("fl1pt_l1pt")) {
+	  //	  nuis_map[index].push_back(val[i]-1);
+	  if (val[i] < 1) {
+	    nuis_map[index].push_back( scale_theta * ((val[i] /scale_theta) - 1) / ( fabs(down[i]) )  );
+	  } else {
+	    nuis_map[index].push_back( scale_theta * ((val[i] /scale_theta) - 1) / (fabs(up[i] ) ) );
+	  }
+	  nuis_map[index].push_back(1);
+	  nuis_map[index].push_back(1);
+	} else {
+	  nuis_map[index].push_back(val[i]);
+	  nuis_map[index].push_back(up[i]);
+	  nuis_map[index].push_back(down[i]);
+	}
+	//	cout << "back = " << nuis_map[index].back() << endl;
         nuis_map[index].push_back(poi_hat[i]);
         nuis_map[index].push_back(poi_up[i]);
         nuis_map[index].push_back(poi_down[i]);
-        nuis_map[index].push_back(poi_nom_up[i]);
-        nuis_map[index].push_back(poi_nom_down[i]);
+	if (tmpname.Contains("gamma_stat_") || tmpname.Contains("ATLAS_norm") || tmpname.Contains("ATLAS_shape_") || tmpname.Contains("B0_l1pt") || tmpname.Contains("fl1pt_l1pt")) {
+	  nuis_map[index].push_back(poi_down[i]);
+	  nuis_map[index].push_back(poi_up[i]);
+	} else {
+	  nuis_map[index].push_back(poi_nom_up[i]);
+	  nuis_map[index].push_back(poi_nom_down[i]);
+	}
     }
 
     map<string, vector<double> > nuis_map_ol;
@@ -610,7 +723,10 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     for (int i = 0; i < nrNuis-1; i++) {
         for (int j = 0; j < nrNuis-1-i; j++) {
             if (strcmp(labels[i].c_str(),labels[i+1].c_str())) {
-                swap(labels[j], labels[j+1]);
+                string tmps;
+                tmps        = labels[j];
+                labels[j]   = labels[j+1];
+                labels[j+1] = tmps;
                 if (overlay != "") labels_ol[j+1] = labels[j+1];
                 if (overlay != "") labels_ol[j] = labels[j];
             }
@@ -626,7 +742,10 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         poi_down[i] = nuis_map[labels[i]][5];
         poi_nom_up[i] = nuis_map[labels[i]][6];
         poi_nom_down[i] = nuis_map[labels[i]][7];
+	//	cout << labels[i] << " : poi_up = " << poi_up[i] << " poi_down = " << poi_down[i] << " poi_nom_up = " << poi_nom_up[i] << " poi_nom_down = " << poi_nom_down[i] << endl;
     }
+
+    
 
     for (int i = 0; i < nrNuis_ol; i++) {
         val_ol[i] = nuis_map_ol[labels_ol[i]][0];
@@ -650,36 +769,76 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         for (int i = 0; i < nrNuis-1; i++) {
             for (int j = 0; j < nrNuis-1-i; j++) {
                 if (poi_up[j]+poi_down[j] > poi_up[j+1]+poi_down[j+1]) {
+
+                    double tmp, tmp_up, tmp_down;
+                    string tmps;
+
                     // swap postfit poi
-                    swap(poi_up[j], poi_up[j+1]);
-                    swap(poi_down[j], poi_down[j+1]);
+                    tmp_up        = poi_up[j];
+                    tmp_down      = poi_down[j];
+                    poi_up[j]     = poi_up[j+1];
+                    poi_down[j]   = poi_down[j+1];
+                    poi_up[j+1]   = tmp_up;
+                    poi_down[j+1] = tmp_down;
+
                     if (overlay != "") {
-                        swap(poi_up_ol[j], poi_up_ol[j+1]);
-                        swap(poi_down_ol[j], poi_down_ol[j+1]);
+                        tmp_up        = poi_up_ol[j];
+                        tmp_down      = poi_down_ol[j];
+                        poi_up_ol[j]     = poi_up_ol[j+1];
+                        poi_down_ol[j]   = poi_down_ol[j+1];
+                        poi_up_ol[j+1]   = tmp_up;
+                        poi_down_ol[j+1] = tmp_down;
                     }
 
                     // swap prefit poi
-                    swap(poi_nom_up[j], poi_nom_up[j+1]);
-                    swap(poi_nom_down[j], poi_nom_down[j+1]);
+                    tmp_up            = poi_nom_up[j];
+                    tmp_down          = poi_nom_down[j];
+                    poi_nom_up[j]     = poi_nom_up[j+1];
+                    poi_nom_down[j]   = poi_nom_down[j+1];
+                    poi_nom_up[j+1]   = tmp_up;
+                    poi_nom_down[j+1] = tmp_down;
+
                     if (overlay != "") {
-                        swap(poi_nom_up_ol[j], poi_nom_up_ol[j+1]);
-                        swap(poi_nom_down_ol[j], poi_nom_down_ol[j+1]);
+                        tmp_up            = poi_nom_up_ol[j];
+                        tmp_down          = poi_nom_down_ol[j];
+                        poi_nom_up_ol[j]     = poi_nom_up_ol[j+1];
+                        poi_nom_down_ol[j]   = poi_nom_down_ol[j+1];
+                        poi_nom_up_ol[j+1]   = tmp_up;
+                        poi_nom_down_ol[j+1] = tmp_down;
                     }
 
                     // swap pulls
-                    swap(up[j], up[j+1]);
-                    swap(down[j], down[j+1]);
-                    swap(val[j], val[j+1]);
+                    tmp_up    = up[j];
+                    tmp_down  = down[j];
+                    tmp       = val[j];
+                    up[j]     = up[j+1];
+                    down[j]   = down[j+1];
+                    val[j]    = val[j+1];
+                    up[j+1]   = tmp_up;
+                    down[j+1] = tmp_down;
+                    val[j+1]  = tmp;
+
                     if (overlay != "") {
-                        swap(up_ol[j], up_ol[j+1]);
-                        swap(down_ol[j], down_ol[j+1]);
-                        swap(val_ol[j], val_ol[j+1]);
+                        tmp_up    = up_ol[j];
+                        tmp_down  = down_ol[j];
+                        tmp       = val_ol[j];
+                        up_ol[j]     = up_ol[j+1];
+                        down_ol[j]   = down_ol[j+1];
+                        val_ol[j]    = val_ol[j+1];
+                        up_ol[j+1]   = tmp_up;
+                        down_ol[j+1] = tmp_down;
+                        val_ol[j+1]  = tmp;
                     }
 
                     // swap names
-                    swap(labels[j], labels[j+1]);
+                    tmps        = labels[j];
+                    labels[j]   = labels[j+1];
+                    labels[j+1] = tmps;
+
                     if (overlay != "") {
-                        swap(labels_ol[j], labels_ol[j+1]);
+                        tmps        = labels_ol[j];
+                        labels_ol[j]   = labels_ol[j+1];
+                        labels_ol[j+1] = tmps;
                     }
                 }
             }
@@ -740,7 +899,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     // make the final arrays for plotting, in particular remove parameters
     int nrNuis2remove = 0;
     for (int i = 0; i < nrNuis; i++) {
-        cout << "DEBUG::Checking " << labels[i] << " " <<  fabs(poi_down[i]-poi_hat[i]) << " " << fabs(poi_up[i]-poi_hat[i]) << endl;
+      //        cout << "DEBUG::Checking " << labels[i]  << " up " << fabs(poi_up[i]-poi_hat[i]) << " down " <<  fabs(poi_down[i]-poi_hat[i]) << endl;
 
         if ((fabs(poi_down[i]) + fabs(poi_up[i])) / (sigma_tot_lo + sigma_tot_hi) < showHighImpact) {
             cout << "WARNING::Removing " << labels[i] << ". Below threshold." << endl;
@@ -748,7 +907,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         }        
     }
 
-    if (showTopParameters != -1) nrNuis2remove = nrNuis - showTopParameters;
+    if (showTopParameters != -1) nrNuis2remove = TMath::Max(0,nrNuis - showTopParameters);
 
     labels.erase(labels.begin(), labels.begin() + nrNuis2remove);
     points_nuis.erase(points_nuis.end() - nrNuis2remove, points_nuis.end());
@@ -821,6 +980,26 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
             poi_nom_down_ol[i] = fabs(poi_nom_down_ol[i]) * scale_poi / max_poi;
         }
 
+	/*
+        if (useRelativeImpact) {
+	  poi_up[i] /= (sigma_tot_hi / max_poi);
+	  poi_down[i] /= (sigma_tot_lo /  max_poi);
+
+            if (overlay != "") {
+	      poi_up_ol[i] /= (sigma_tot_ol_hi / max_poi);
+	      poi_down_ol[i] /= (sigma_tot_ol_lo / max_poi);
+            }
+
+            poi_nom_up[i] /= (sigma_tot_hi / max_poi);
+            poi_nom_down[i] /= (sigma_tot_lo / max_poi);
+
+            if (overlay != "") {
+	      poi_nom_up_ol[i] /= (sigma_tot_ol_hi / max_poi);
+	      poi_nom_down_ol[i] /= (sigma_tot_ol_lo / max_poi);
+            }
+        }
+	*/
+	/*
         if (useRelativeImpact) {
             poi_up[i] /= sigma_tot_hi;
             poi_down[i] /= sigma_tot_lo;
@@ -838,6 +1017,11 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
                 poi_nom_down_ol[i] /= sigma_tot_ol_lo;
             }
         }
+	*/
+
+	//	cout << labels[i] << " : poi_up = " << poi_up[i] << " poi_down = " << poi_down[i] << " poi_nom_up = " << poi_nom_up[i] << " poi_nom_down = " << poi_nom_down[i] << " sigma_tot_hi = " << sigma_tot_hi << " sigma_tot_lo = " << sigma_tot_lo << " max_poi = " << max_poi << endl;
+
+
 
         up[i] = fabs(up[i]) * scale_theta;
         down[i] = fabs(down[i]) * scale_theta;
@@ -851,11 +1035,11 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     // change to the right pad
     pad1->cd();
 
-    // make plot of pulls for nuisance parameters
+    // make plot of pulls for nuisance paramters
     markerSize = 1;
     TGraphAsymmErrors* gr = makeGraphErr("", nrNuis, getAry(val), getAry(points_nuis), getAry(down), getAry(up), NULL, NULL);
-    gr->SetLineColor(kBlack);
-    gr->SetMarkerColor(kBlack);
+    gr->SetLineColor(1);
+    gr->SetMarkerColor(1);
     gr->SetMarkerStyle(20);
     gr->SetLineStyle(1);
     gr->SetLineWidth(2);
@@ -865,8 +1049,8 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     TGraphAsymmErrors* gr_ol;
     if (overlay != "") {
         gr_ol = makeGraphErr("", nrNuis_ol, getAry(val_ol), getAry(points_nuis_ol), getAry(down_ol), getAry(up_ol), NULL, NULL);
-        gr_ol->SetLineColor(kBlack);
-        gr_ol->SetMarkerColor(kBlack);
+        gr_ol->SetLineColor(1);
+        gr_ol->SetMarkerColor(1);
         gr_ol->SetMarkerStyle(24);
         gr_ol->SetLineStyle(1);
         gr_ol->SetLineWidth(2);
@@ -875,23 +1059,16 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     }
 
     // make plot of 1 sigma boxes
-    TGraphAsymmErrors* gr1s = makeGraphErr("", nrNuis, getAry(val), getAry(points_nuis), getAry(boxdown), getAry(boxup), NULL, NULL);
-    gr1s->SetLineColor(color_standardband);
-    gr1s->SetMarkerColor(color_standardband);
-    gr1s->SetLineStyle(1);
-    gr1s->SetLineWidth(3);
-    gr1s->SetMarkerSize(markerSize*1.25);
+    TGraphAsymmErrors* gr1s = makeGraphErr("", nrNuis, getAry(val), getAry(points_nuis), getAry(boxdown), getAry(boxup), getAry(cendown), getAry(cenup));
+    gr1s->SetFillColor(color_standardband);
+    gr1s->SetMarkerSize(0);
     gr1s->GetXaxis()->SetTitleOffset(1.2);
-
 
     TGraphAsymmErrors* gr1s_ol;
     if (overlay != "") {
-        gr1s_ol = makeGraphErr("", nrNuis_ol, getAry(val_ol), getAry(points_nuis_ol), getAry(boxdown_ol), getAry(boxup_ol), NULL, NULL);
-        gr1s_ol->SetLineColor(color_standardband_ol);
-        gr1s_ol->SetMarkerColor(color_standardband_ol);
-        gr1s_ol->SetLineStyle(1);
-        gr1s_ol->SetLineWidth(3);
-        gr1s_ol->SetMarkerSize(markerSize*1.25);
+        gr1s_ol = makeGraphErr("", nrNuis_ol, getAry(val_ol), getAry(points_nuis_ol), getAry(boxdown_ol), getAry(boxup_ol), getAry(cendown_ol), getAry(cenup_ol));
+        gr1s_ol->SetFillColor(color_standardband_ol);
+        gr1s_ol->SetMarkerSize(0);
         gr1s_ol->GetXaxis()->SetTitleOffset(1.2);
     }
 
@@ -913,8 +1090,8 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     TGraphAsymmErrors* gr_poi = makeGraphErr("", nrNuis, getAry(poi_hat), getAry(points_nuis), getAry(poi_down), getAry(poi_up), getAry(cenup), getAry(cendown));
     gr_poi->SetLineColor(color_postfit);
     gr_poi->SetFillColor(color_postfit);
-    gr_poi->SetFillStyle(3354);
-    gr_poi->SetLineWidth(0);
+    gr_poi->SetFillStyle(style_postfit);
+    gr_poi->SetLineWidth(1);
     gr_poi->SetMarkerSize(0);
     
     TGraphAsymmErrors* gr_poi_ol;
@@ -922,8 +1099,8 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         gr_poi_ol = makeGraphErr("", nrNuis_ol, getAry(poi_hat_ol), getAry(points_nuis_ol), getAry(poi_down_ol), getAry(poi_up_ol), getAry(cenup_ol), getAry(cendown_ol));
         gr_poi_ol->SetLineColor(color_postfit_ol);
         gr_poi_ol->SetFillColor(color_postfit_ol);
-        gr_poi_ol->SetFillStyle(3345);
-        gr_poi_ol->SetLineWidth(0);
+        gr_poi_ol->SetFillStyle(style_postfit_ol);
+        gr_poi_ol->SetLineWidth(1);
         gr_poi_ol->SetMarkerSize(0);
     }
 
@@ -931,6 +1108,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     TGraphAsymmErrors* gr_poi_nom = makeGraphErr("", nrNuis, getAry(poi_hat), getAry(points_nuis), getAry(poi_nom_down), getAry(poi_nom_up), getAry(cenup), getAry(cendown));
     gr_poi_nom->SetLineColor(color_prefit);
     gr_poi_nom->SetFillColor(color_prefit);
+    gr_poi_nom->SetFillStyle(style_prefit);
     gr_poi_nom->SetLineWidth(1);
     gr_poi_nom->SetMarkerSize(0);
 
@@ -939,40 +1117,54 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         gr_poi_nom_ol = makeGraphErr("", nrNuis_ol, getAry(poi_hat_ol), getAry(points_nuis_ol), getAry(poi_nom_down_ol), getAry(poi_nom_up_ol), getAry(cenup_ol), getAry(cendown_ol));
         gr_poi_nom_ol->SetLineColor(color_prefit_ol);
         gr_poi_nom_ol->SetFillColor(color_prefit_ol);
+        gr_poi_nom_ol->SetFillStyle(style_prefit_ol);
         gr_poi_nom_ol->SetLineWidth(1);
         gr_poi_nom_ol->SetMarkerSize(0);
     }
 
+    // make hatched area for stat error
+    TGraphAsymmErrors* grl_stat = makeGraphErr("", nrNuis, getAry(poi_hat), getAry(points_nuis), statboxdown, statboxup, getAry(cendown), getAry(cenup));
+    grl_stat->SetLineColor(color_staterror);
+    grl_stat->SetFillColor(color_staterror);
+    grl_stat->SetFillStyle(3335);
+    grl_stat->SetLineWidth(1);
+    grl_stat->SetMarkerSize(0);
+    
+    if (overlay != "") {
+        // TODO: not needed at the moment
+    }
+
+    // make hatched area for syst error
+    TGraphAsymmErrors* grl_syst = makeGraphErr("", nrNuis, getAry(poi_hat), getAry(points_nuis), systboxdown, systboxup, getAry(cendown), getAry(cenup));
+    grl_syst->SetLineColor(color_systerror);
+    grl_syst->SetFillColor(color_systerror);
+    grl_syst->SetFillStyle(3353);
+    grl_syst->SetLineWidth(1);
+    grl_syst->SetMarkerSize(0);
+    
+    if (overlay != "") {
+        // TODO: not needed at the moment
+    }
 
     double border_lo = -sigma_tot_lo / max_poi;
     double border_hi = sigma_tot_hi / max_poi;
-
-    // different shades for better readability
-    int nrShades = ceil((nrNuis+1)/2);
-    std::vector<double> shadeCenter;
-    std::vector<double>  shadePoints;
-    std::vector<double>  shadeWidth;
-    std::vector<double>  shadeHeight;
-    for (int ishade = 0; ishade < nrShades; ishade++) {
-        shadeCenter.push_back(0.0);
-        shadePoints.push_back(2.0*ishade+0.5);
-        shadeWidth.push_back(10.); // TODO: should not be hardcoded
-        shadeHeight.push_back(0.5);
-    }
-
-    TGraphAsymmErrors* gr_shades = makeGraphErr("", nrShades, getAry(shadeCenter), getAry(shadePoints), getAry(shadeWidth), getAry(shadeWidth), getAry(shadeHeight), getAry(shadeHeight));
-    gr_shades->SetLineColor(18);
-    gr_shades->SetFillColor(18);
-    gr_shades->SetFillStyle(3001);
-    gr_shades->SetLineWidth(1);
-    gr_shades->SetMarkerSize(0);
-
+    cout << "sigma_tot_lo = " << sigma_tot_lo << " sigma_tot_hi = " << sigma_tot_hi << " max_poi = " << max_poi << " border_lo = " << border_lo << " border_hi = " << border_hi << endl;
     // histogram to get the nuisance parameter labels correct
-    TH2F *h = new TH2F("h", "", 1, border_lo, border_hi, nrNuis+offset+1, -offset, nrNuis+1);
-    for (int i = offset; i < nrNuis+offset; i++) h->GetYaxis()->SetBinLabel(i+1, drawParamNames?labels[i-offset].c_str():"");
+    TH2F *h = new TH2F("h", "", 1, border_lo, border_hi, nrNuis+offset, -offset, nrNuis);
+    for (int i = offset; i < nrNuis+offset; i++) {
+      TString tmpstr=labels[i-offset].c_str();
+      tmpstr.ReplaceAll("alpha_","");
+      tmpstr.ReplaceAll("ATLAS_","");
+      tmpstr.ReplaceAll("gamma_","");
+      int labelcolor = kCyan-2;
+      if (tmpstr.Contains("norm_") || tmpstr.Contains("stat_") || tmpstr.Contains("shape_")) labelcolor =  kMagenta+1 ;
+      if (tmpstr.Contains("QCDscale") || tmpstr.Contains("BR_tautau") || tmpstr.Contains("pdf_") || tmpstr.Contains("Gen_Qmass_ggH")) labelcolor = kOrange+10; 
+      h->GetYaxis()->SetBinLabel(i+1, drawParamNames ? Form("#color[%d]{%s}",labelcolor,tmpstr.Data()) :"");
+    }
     h->LabelsOption("h");
     double labelSize = 1./nrNuis;
-    h->SetLabelSize(labelSize>0.02?0.02:labelSize,"Y");
+    h->SetLabelSize(labelSize>0.03?0.03:labelSize,"Y");
+    h->SetLabelSize(0.03,"Y");
     h->GetXaxis()->SetLabelColor(kWhite);
     h->GetXaxis()->SetAxisColor(kWhite);
     h->GetYaxis()->SetLabelColor(kBlack);
@@ -980,29 +1172,48 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     h->GetYaxis()->SetTickLength(0.);
     h->SetStats(0);
     // h->LabelsDeflate();
+    gPad->SetGrid(0,1);
     h->Draw("h");
     // TODO: order should be the same for overlay, so just do it once
 
+
     // histogram to get the normalization parameters labels correct
+    //    cout << "min = " << min << " max = " << max << endl;
     TH2F *h2 = new TH2F("h2", "", 1, min-0.05, max+0.05, nrNFs, 0, nrNFs);
-    for (int i = 0; i < nrNFs; i++) h2->GetYaxis()->SetBinLabel(i+1, drawParamNames?nf_labels[i].c_str():"");
+    for (int i = 0; i < nrNFs; i++) {
+      TString tmpstr=nf_labels[i].c_str(); tmpstr.ReplaceAll("alpha_",""); tmpstr.ReplaceAll("ATLAS_",""); tmpstr.ReplaceAll("gamma_","");h2->GetYaxis()->SetBinLabel(i+1, drawParamNames?tmpstr:"");
+    }
     h2->SetStats(0);
     h2->SetLabelSize(0.1, "X");
     h2->SetLabelSize(0.1, "Y");
     // TODO: not needed at the moment
 
     // axis for the POI correlation
-    TGaxis *axis_poi = new TGaxis(border_lo, nrNuis+1, border_hi, nrNuis+1, (-sigma_tot_lo) / scale_poi, (sigma_tot_hi) / scale_poi, 510, "-L");
+    TGaxis *axis_poi = 0;
+    if (useRelativeImpact) {
+      //      axis_poi = new TGaxis(border_lo, nrNuis, border_hi, nrNuis, -1.1 /(max_poi * scale_poi), 1.1 / (max_poi * scale_poi), 510, "+LS");
+      if ( fabs(border_lo/border_hi) < 1 ) {
+	axis_poi = new TGaxis(border_lo, nrNuis, border_hi, nrNuis, -1 / scale_poi, fabs(border_hi/border_lo) / scale_poi, 510, "+LS");
+      } else {
+	axis_poi = new TGaxis(border_lo, nrNuis, border_hi, nrNuis, -fabs(border_lo/border_hi) / scale_poi, 1 / scale_poi, 510, "+LS");
+      }
+      //	axis_poi = new TGaxis(border_lo, nrNuis, border_hi, nrNuis, -1 / scale_poi, 1 / scale_poi, 510, "+LS");
+    } else {
+      axis_poi = new TGaxis(border_lo, nrNuis, border_hi, nrNuis, -sigma_tot_lo / scale_poi, sigma_tot_hi / scale_poi, 510, "+LS");
+    }
     axis_poi->ImportAxisAttributes(h->GetXaxis());
     axis_poi->SetName("axis_poi");
-    if (useRelativeImpact) axis_poi->SetTitle("#Delta#hat{#mu}/#Delta#hat{#mu}_{tot}");
+    if (useRelativeImpact) axis_poi->SetTitle("#Delta#hat{#mu}/#sigma_{tot}");
     else axis_poi->SetTitle("#Delta#hat{#mu}");
-    axis_poi->SetTitleOffset(1.1);
+    axis_poi->SetNoExponent(kTRUE);
+    axis_poi->SetTitleOffset(-1.1);
+    axis_poi->SetLabelOffset(-.05);
+    axis_poi->SetTickSize(.02);
     axis_poi->SetLineColor(kBlack);
     axis_poi->SetLabelColor(kBlack);
     axis_poi->SetTitleColor(kBlack);
-    axis_poi->SetLabelSize(0.034);
-    axis_poi->SetTitleSize(0.034);
+    axis_poi->SetLabelSize(0.035);
+    axis_poi->SetTitleSize(0.035);
 
     // axis for the nuisance parameter pull
     TGaxis *axis_theta = new TGaxis(border_lo, -offset, border_hi, -offset, (-sigma_tot_lo / max_poi) / scale_theta, (sigma_tot_hi / max_poi) / scale_theta, 510, "+R");
@@ -1013,15 +1224,15 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     axis_theta->SetLineColor(kBlack);
     axis_theta->SetLabelColor(kBlack);
     axis_theta->SetTitleColor(kBlack);
-    axis_theta->SetLabelSize(0.034);
-    axis_theta->SetTitleSize(0.034);
+    axis_theta->SetLabelSize(0.035);
+    axis_theta->SetTitleSize(0.035);
 
     // axis for the nuisance parameter labels
-    TGaxis *axis_label = new TGaxis(border_lo, 0, border_lo, nrNuis+1, 0, nrNuis+1, 0, "-R");
+    TGaxis *axis_label = new TGaxis(border_lo, 0, border_lo, nrNuis, 0, nrNuis, 510, "-R");
     axis_label->SetLineColor(kBlack);
     axis_label->SetTitleColor(kWhite);
     axis_label->SetLabelSize(0);
-    axis_label->SetNdivisions(0);
+    axis_label->SetNdivisions(nrNuis-1);
 
     // some line definitions
     TLine l;
@@ -1031,12 +1242,12 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
   
     TLine l_stat;
     l_stat.SetLineWidth(2);
-    l_stat.SetLineColor(color_staterror);
+    l_stat.SetLineColor(grl_stat->GetLineColor());
     l_stat.SetLineStyle(2);
 
     TLine l_syst;
     l_syst.SetLineWidth(2);
-    l_syst.SetLineColor(color_systerror);
+    l_syst.SetLineColor(grl_syst->GetLineColor());
     l_syst.SetLineStyle(2);
 
     TLine l_tot;
@@ -1045,8 +1256,14 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     l_tot.SetLineStyle(2);
 
     // draw the nuisance parameter pulls including error bands and impact on poi
-    gr_shades->Draw("p2");
+    if (drawHatchedBands) {
+        grl_stat->Draw("p2");
+        grl_syst->Draw("p2");
+    }
 
+    gr1s->Draw("p2");
+    if (overlay != "") gr1s_ol->Draw("p2");
+    
     if (drawPrefitImpactBand) {
         gr_poi_nom->Draw("p2");
         if (overlay != "") gr_poi_nom_ol->Draw("p2");
@@ -1055,9 +1272,9 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
         gr_poi->Draw("p2");
         if (overlay != "") gr_poi_ol->Draw("p2");
     }
-
+    
     // draw axes
-    if (drawPrefitImpactBand || drawPostfitImpactBand || drawErrorBars) axis_poi->Draw();
+    if (drawPrefitImpactBand || drawPostfitImpactBand || drawErrorBars || drawHatchedBands) axis_poi->Draw();
     axis_theta->Draw();
     axis_label->Draw();
 
@@ -1066,17 +1283,14 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     l.DrawLine( 1. * scale_theta, 0.,  1. * scale_theta, nrNuis);
     l.DrawLine(-1. * scale_theta, 0., -1. * scale_theta, nrNuis);
 
-    gStyle->SetEndErrorSize(5.0);
-    //    gr1s->Draw("p");
-    if (overlay != "") gr1s_ol->Draw("p");
-    
-    
-    
-    
-
-    
-
     // draw syst and stat errors
+    if (drawHatchedBands) {
+        l_stat.DrawLine( sigma_stat_hi * scale_poi / max_poi, 0.,  sigma_stat_hi * scale_poi / max_poi, nrNuis);
+        l_stat.DrawLine(-sigma_stat_lo * scale_poi / max_poi, 0., -sigma_stat_lo * scale_poi / max_poi, nrNuis);
+
+        l_syst.DrawLine( sigma_syst_hi * scale_poi / max_poi, 0.,  sigma_syst_hi * scale_poi / max_poi, nrNuis);
+        l_syst.DrawLine(-sigma_syst_lo * scale_poi / max_poi, 0., -sigma_syst_lo * scale_poi / max_poi, nrNuis);
+    }
     
     if (drawErrorBars) {
         l_stat.SetLineStyle(1);
@@ -1127,23 +1341,26 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     c1->SetLogy(0);
 
     TLegend* leg = makeLeg();
+    leg->SetFillStyle(1000);
     leg->SetX1(channelPosX+0.34);
-    leg->SetY1(channelPosY-0.0775);
-    leg->SetX2(channelPosX + 0.8);
-    leg->SetY2(channelPosY+0.02);
-    leg->SetTextSize(0.0225);
+    leg->SetY1(channelPosY-0.09);
+    leg->SetX2(channelPosX+0.66);
+    leg->SetY2(channelPosY+0.03);
+    leg->SetTextSize(0.025);
 
-    leg->AddEntry(gr, "Pull","lp");
-    if (nrNuis_ol > 0) leg->AddEntry(gr_ol, "Alt pull","lp");
-    //    leg->AddEntry(gr1s, "1 standard deviation","l");
-    if (nrNuis_ol > 0) leg->AddEntry(gr1s_ol, "Alt 1 standard deviation","l");
+    leg->AddEntry(gr1s, "1 standard deviation","f");
+    if (overlay != "") leg->AddEntry(gr1s_ol, "Alt 1 standard deviation","f");
     if (drawPrefitImpactBand) {
-        leg->AddEntry(gr_poi_nom, "Prefit Impact on #hat#mu", "f");
-        if (nrNuis_ol > 0) leg->AddEntry(gr_poi_nom_ol, "Alt Prefit Impact on #hat#mu", "f");
+        leg->AddEntry(gr_poi_nom, "-1#sigma Prefit Impact on #hat{#mu}","f");
+        if (overlay != "") leg->AddEntry(gr_poi_nom_ol, "Alt -1#sigma Prefit Impact on #hat{#mu}","f");
     }
     if (drawPostfitImpactBand) {
-        leg->AddEntry(gr_poi, "Postfit Impact on #hat#mu", "f");
-        if (nrNuis_ol > 0) leg->AddEntry(gr_poi_ol, "Alt Postfit Impact on #hat#mu", "f");
+        leg->AddEntry(gr_poi, "+1#sigma Postfit Impact on #hat{#mu}","f");
+        if (overlay != "") leg->AddEntry(gr_poi_ol, "Alt +1#sigma Postfit Impact on #hat{#mu}","f");
+    }
+    if (drawHatchedBands) {
+        leg->AddEntry(grl_stat, "statistics","f");
+        leg->AddEntry(grl_syst, "systematics","f");
     }
 
     leg->Draw();
@@ -1216,8 +1433,6 @@ void ROOT2Ascii(string folder) {
         fileName << "root-files/" << folder << "/" << *it;
 
         bool isNorm = false;
-        bool prefit_one = false;
-
         bool success = true;
         bool isInfNan = false;
     
@@ -1231,23 +1446,27 @@ void ROOT2Ascii(string folder) {
         if (!success) continue;
 
         TString histoName = it->ReplaceAll(".root", "");
-
+	/*
+	if (TString(folder).BeginsWith("vis")) {
+	histoName.ReplaceAll("_SR_2jetvbf_","_SRM_2jetvbf_");
+	histoName.ReplaceAll("_TCR_2jetvbf_","_TCRM_2jetvbf_");
+	cout << *it << " " << histoName << endl;
+	}
+	*/
         // if (histoName.Contains("atlas_nbkg_")) isNorm = true;
         // if (histoName.Contains("slope_")) isNorm = true;
         // if (histoName.Contains("p0_")) isNorm = true;
         // if (histoName.Contains("p1_")) isNorm = true;
         // if (histoName.Contains("p2_")) isNorm = true;
         // if (histoName.Contains("p3_")) isNorm = true;
-        // if (histoName.Contains("ATLAS_norm") /*&& histoName.Contains("lvlv")*/) isNorm = true; // DG-2015-07-24
+        if (histoName.Contains("ATLAS_norm") /*&& histoName.Contains("lvlv")*/) isNorm = false;//true;
         // if (histoName.Contains("ATLAS_Hbb_norm_")) isNorm = true;
         // if (histoName.Contains("ATLAS_PM_EFF_")) isNorm = true;
         // if (histoName.Contains("scale_norm")) isNorm = true;
-        if (histoName.Contains("scale_") && !histoName.Contains("QCDscale_")) isNorm = true; // DG-2015-07-24
+        if (histoName.Contains("scale_") && !histoName.Contains("QCDscale_")) isNorm = true;
         if (histoName.Contains("mu_BR")) isNorm = true;
-	if (histoName.Contains("gamma_stat")) {isNorm = true;}
-	if (histoName.Contains("gamma_B0")) {prefit_one=true; } //isNorm=true;}
-	if (histoName.Contains("fl1pt")  ) {prefit_one=true;} //; isNorm=true;}
-	//	if (histoName.Contains("fl1pt")) {isNorm = true;}
+	if (histoName.Contains("gamma_stat_")) isNorm = false; //true;
+	if (histoName.Contains("ATLAS_shape_")) isNorm = false;//true;
         TH1D* hist = (TH1D*)f->Get(histoName);
 
         int nrBins = hist->GetNbinsX();
@@ -1268,18 +1487,10 @@ void ROOT2Ascii(string folder) {
         }
 
         (isNorm?outFile_nf:outFile) << (isNorm?nrNPs++:nrNFs++) << " ";
-	double nominalnumber=0;
-        for (int bin = 1; bin <= nrBins; bin++) {
-	  double number = hist->GetBinContent(bin);
 
-	  if(bin==1) 
-	    nominalnumber = number;
-	  if (prefit_one && ( bin==1 || bin==4|| bin==5|| bin==6|| bin==7|| bin==8 ))  
-	    number=number-1;
-	  if (prefit_one && ( bin==7 || bin==8  ) ){
-	    number=hist->GetBinContent(bin-2) -1;
-	   }
-	  (isNorm?outFile_nf:outFile) << number << ((bin < nrBins)?" ":"\n");
+        for (int bin = 1; bin <= nrBins; bin++) {
+            double number = hist->GetBinContent(bin);
+            (isNorm?outFile_nf:outFile) << number << ((bin < nrBins)?" ":"\n");
         }
 
         if (isNorm) outFile_nf_id << * it << "\n";
