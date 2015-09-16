@@ -2,7 +2,6 @@
 // Email       : gadatsch@nikhef.nl
 // Date        : 2013-04-13
 // Description : Draw pulls of nuisance parameters, rank by importance
-// Version used by Rob
 
 #include "TCanvas.h"
 #include "TH2F.h"
@@ -61,7 +60,13 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
 void ROOT2Ascii(string folder);
 void loadFile(const char* fileName, int cols, fileHolder file);
 vector<string> getLabel(const char* fileName, int nrPars);
-void drawPlot_pulls(bool _useRelativeImpact = 0, double use_scale_poi=1, double use_scale_theta = 1, string mass = "125", string cardName = "", bool remakeAscii = 0, string overlayCard="") {
+void drawPlot_pulls_rob(string cardName = "",
+                        bool _useRelativeImpact = 0,
+                        double use_scale_poi=1,
+                        double use_scale_theta = 1,
+                        string mass = "125",
+                        bool remakeAscii = 1,
+                        string overlayCard="") {
     useRelativeImpact = _useRelativeImpact;
     scale_poi = use_scale_poi;
     scale_theta = use_scale_theta;
@@ -624,35 +629,37 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
     map<string, vector<double> > nuis_map;
     for (int i = 0; i < nrNuis; i++) {
         string index = labels[i];
-	TString tmpname = index;
-	//	cout << tmpname << " " << val[i]/scale_theta << " " << up[i]/scale_theta <<  " " << down[i] / scale_theta << endl;
-//	if(!tmpname.Contains("gamma_stat_")) continue;
-	if (tmpname.Contains("gamma_stat_") || tmpname.Contains("ATLAS_norm") || tmpname.Contains("ATLAS_shape_") || tmpname.Contains("B0_l1pt") || tmpname.Contains("fl1pt_l1pt")) {
-	  //	  nuis_map[index].push_back(val[i]-1);
-	  if (val[i] < 1) {
-	    nuis_map[index].push_back( scale_theta * ((val[i] /scale_theta) - 1) / ( fabs(down[i]) )  );
-	  } else {
-	    nuis_map[index].push_back( scale_theta * ((val[i] /scale_theta) - 1) / (fabs(up[i] ) ) );
-	  }
-	  nuis_map[index].push_back(1);
-	  nuis_map[index].push_back(1);
-	} else {
-	  nuis_map[index].push_back(val[i]);
-	  nuis_map[index].push_back(up[i]);
-	  nuis_map[index].push_back(down[i]);
-	}
-	//	cout << "back = " << nuis_map[index].back() << endl;
+        TString tmpname = index;
+        //	cout << tmpname << " " << val[i]/scale_theta << " " << up[i]/scale_theta <<  " " << down[i] / scale_theta << endl;
+        // if(!tmpname.Contains("gamma_stat_")) continue;
+        bool subtractOne = (tmpname.Contains("gamma_stat_") ||
+                            tmpname.Contains("ATLAS_norm") ||
+                            tmpname.Contains("ATLAS_shape_") ||
+                            tmpname.Contains("B0_l1pt") ||
+                            tmpname.Contains("fl1pt_l1pt"));
+        subtractOne = false;
+        if (subtractOne) {
+            double numerator = scale_theta * ((val[i] /scale_theta) - 1);
+            double denominator = fabs(val[i] < 1 ? down[i] : up[i]);
+            nuis_map[index].push_back( numerator / denominator);
+            nuis_map[index].push_back(1);
+            nuis_map[index].push_back(1);
+        } else {
+            nuis_map[index].push_back(val[i]);
+            nuis_map[index].push_back(up[i]);
+            nuis_map[index].push_back(down[i]);
+        }
         nuis_map[index].push_back(poi_hat[i]);
         nuis_map[index].push_back(poi_up[i]);
         nuis_map[index].push_back(poi_down[i]);
-	if (tmpname.Contains("gamma_stat_") || tmpname.Contains("ATLAS_norm") || tmpname.Contains("ATLAS_shape_") || tmpname.Contains("B0_l1pt") || tmpname.Contains("fl1pt_l1pt")) {
-	  nuis_map[index].push_back(poi_down[i]);
-	  nuis_map[index].push_back(poi_up[i]);
-	} else {
-	  nuis_map[index].push_back(poi_nom_up[i]);
-	  nuis_map[index].push_back(poi_nom_down[i]);
-	}
-    }
+        if (subtractOne) {
+            nuis_map[index].push_back(poi_down[i]);
+            nuis_map[index].push_back(poi_up[i]);
+        } else {
+            nuis_map[index].push_back(poi_nom_up[i]);
+            nuis_map[index].push_back(poi_nom_down[i]);
+        }
+    } // for(i)
 
     map<string, vector<double> > nuis_map_ol;
     if (overlay != "") {
