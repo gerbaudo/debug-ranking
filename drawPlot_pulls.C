@@ -1440,6 +1440,7 @@ void ROOT2Ascii(string folder) {
         fileName << "root-files/" << folder << "/" << *it;
 
         bool isNorm = false;
+        bool prefit_one = false;
         bool success = true;
         bool isInfNan = false;
     
@@ -1475,6 +1476,9 @@ void ROOT2Ascii(string folder) {
         if (histoName.Contains("gamma_stat_")) isNorm = false; //true;
         if (histoName.Contains("ATLAS_shape_")) isNorm = false;//true;
 
+        // if (histoName.Contains("gamma_B0")) {prefit_one=true; } // DG-2015-09-18
+        if (histoName.Contains("fl1pt")  ) {prefit_one=true;}   // DG-2015-09-18
+
         TH1D* hist = (TH1D*)f->Get(histoName);
         int nrBins = hist->GetNbinsX();
         for (int bin = 1; bin <= nrBins; bin++) {
@@ -1490,6 +1494,11 @@ void ROOT2Ascii(string folder) {
 
         for (int bin = 1; bin <= nrBins; bin++) {
             double number = hist->GetBinContent(bin);
+            if(prefit_one && ( bin==1 || bin==4|| bin==5|| bin==6|| bin==7|| bin==8 ))
+                number=number-1;
+            if(prefit_one && ( bin==7 || bin==8  ) ){
+                number=hist->GetBinContent(bin-2) -1;
+            }
             (isNorm?outFile_nf:outFile) << number << ((bin < nrBins)?" ":"\n");
         } // for(bin)
 
