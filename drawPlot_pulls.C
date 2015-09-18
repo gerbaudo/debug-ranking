@@ -637,7 +637,7 @@ void drawPlot_pulls2(string cardName, string mass, TCanvas* c1, TPad* pad1, TPad
                             tmpname.Contains("ATLAS_shape_") ||
                             tmpname.Contains("B0_l1pt") ||
                             tmpname.Contains("fl1pt_l1pt"));
-        subtractOne = false;
+        //subtractOne = false;
         if (subtractOne) {
             double numerator = scale_theta * ((val[i] /scale_theta) - 1);
             double denominator = fabs(val[i] < 1 ? down[i] : up[i]);
@@ -1472,45 +1472,36 @@ void ROOT2Ascii(string folder) {
         // if (histoName.Contains("scale_norm")) isNorm = true;
         if (histoName.Contains("scale_") && !histoName.Contains("QCDscale_")) isNorm = true;
         if (histoName.Contains("mu_BR")) isNorm = true;
-	if (histoName.Contains("gamma_stat_")) isNorm = false; //true;
-	if (histoName.Contains("ATLAS_shape_")) isNorm = false;//true;
+        if (histoName.Contains("gamma_stat_")) isNorm = false; //true;
+        if (histoName.Contains("ATLAS_shape_")) isNorm = false;//true;
+
         TH1D* hist = (TH1D*)f->Get(histoName);
-
         int nrBins = hist->GetNbinsX();
-
         for (int bin = 1; bin <= nrBins; bin++) {
             double number = hist->GetBinContent(bin);
-            
-            // check inf
-            if (number > 10e9) isInfNan = true;
-
-            // check nan
-            if (number != number) isInfNan = true;
+            if (number > 10e9) isInfNan = true; // check inf
+            if (number != number) isInfNan = true; // check nan
         }
-    
         if (ignoreInfNan && isInfNan) {
             cout << "WARNING::Skipping " << *it << " because of inf/nan" << endl;
             continue;
         }
-
         (isNorm?outFile_nf:outFile) << (isNorm?nrNPs++:nrNFs++) << " ";
 
         for (int bin = 1; bin <= nrBins; bin++) {
             double number = hist->GetBinContent(bin);
             (isNorm?outFile_nf:outFile) << number << ((bin < nrBins)?" ":"\n");
-        }
+        } // for(bin)
 
         if (isNorm) outFile_nf_id << * it << "\n";
         else outFile_id << * it << "\n";
-
         f->Close();
-    }
+    } // for(it)
 
     cout << "Writing to file: " << outFileName.str() << "*.txt" << endl;
-
     outFile.close();
     outFile_id.close();
-    
+
     if (mode == pulls) {
         outFile_nf.close();
         outFile_nf_id.close();
